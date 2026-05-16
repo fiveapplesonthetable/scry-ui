@@ -39,19 +39,24 @@ export const Api = {
   health: (): Promise<{ok: boolean; scry_connected: boolean; uptime_ms: number}> =>
     jget('/api/health'),
   scryStderr: (): Promise<{lines: string[]}> => jget('/api/scry-stderr'),
+  /** Fetch a file. Pass `span` to clip to N lines around `line`; omit
+   *  for the whole file (capped to 2 MB; over that, returns the first
+   *  200 lines + `truncated: true`). */
   file: (
     path: string,
     line: number,
-    span = 40,
+    span?: number,
   ): Promise<{
     path: string;
     line: number;
     start_line: number;
     end_line: number;
     total_lines: number;
+    truncated: boolean;
     lines: string[];
-  }> =>
-    jget(
-      `/api/file?path=${encodeURIComponent(path)}&line=${line}&span=${span}`,
-    ),
+  }> => {
+    const qs = new URLSearchParams({path, line: String(line)});
+    if (span !== undefined) qs.set('span', String(span));
+    return jget(`/api/file?${qs.toString()}`);
+  },
 };

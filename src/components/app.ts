@@ -1,15 +1,16 @@
-// App shell: topbar + page router. Routing is a 5-way switch on
-// store.page; the URL fragment drives it for shareability.
+// App shell: top bar + page outlet + bottom nav (mobile).
 
 import m from 'mithril';
 
 import {store} from '../core/store.js';
 
 import {DashboardPage} from '../pages/dashboard.js';
+import {FilePage} from '../pages/file.js';
 import {HealthPage} from '../pages/health.js';
 import {LogsPage} from '../pages/logs.js';
 import {SearchPage} from '../pages/search.js';
 import {SettingsPage} from '../pages/settings.js';
+import {Bottomnav} from './bottomnav.js';
 import {Topbar} from './topbar.js';
 
 export const App: m.ClosureComponent = () => ({
@@ -31,7 +32,10 @@ export const App: m.ClosureComponent = () => ({
       case 'health':
         page = m(HealthPage);
         break;
+      case 'file':
+        page = m(FilePage);
+        break;
     }
-    return m('.sc-app', [m(Topbar), m('.sc-page', page)]);
+    return m('.sc-app', [m(Topbar), m('.sc-page', page), m(Bottomnav)]);
   },
 });

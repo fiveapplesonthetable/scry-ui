@@ -81,14 +81,23 @@ def desktop_run(ctx: BrowserContext) -> None:
     page.wait_for_selector("[data-test='status-line']", timeout=2000)
     shot(page, "desktop-02-grep-results", copy_to_readme=True)
 
-    # File panel
+    # Click a hit -> navigates to #/file route with syntax highlighting.
     rows.first.click()
-    page.wait_for_selector("[data-test='close-file']", timeout=5000)
-    check("desktop · file panel opens", page.locator(".sc-filepanel__body").count() == 1)
-    shot(page, "desktop-03-file-panel", copy_to_readme=True)
-    page.keyboard.press("Escape")  # exercise Esc shortcut
-    page.wait_for_selector("[data-test='close-file']", state="detached", timeout=2000)
-    check("desktop · Esc closes file panel", page.locator(".sc-filepanel").count() == 0)
+    page.wait_for_selector("[data-test='fileview-body']", timeout=8000)
+    check("desktop · clicking hit navigates to file page", page.url.startswith(URL + "/#/file"))
+    # Verify highlight.js classes landed on at least one token.
+    hljs_count = page.evaluate(
+        "() => document.querySelectorAll('[class^=hljs-]').length"
+    )
+    check("desktop · syntax highlighting active", hljs_count > 5, f"{hljs_count} hljs tokens")
+    # Verify the hit line is highlighted and scrolled into view.
+    hit_line = page.locator(".sc-codeline--hit")
+    check("desktop · hit line is highlighted", hit_line.count() == 1)
+    shot(page, "desktop-03-file-page", copy_to_readme=True)
+    # Esc goes back.
+    page.keyboard.press("Escape")
+    page.wait_for_selector("[data-test='results-list']", timeout=3000)
+    check("desktop · Esc returns to results", page.url.endswith("#/search") or "#/search" in page.url)
 
     # Switch verb -> def via picker
     page.locator("[data-test='cmd-picker-btn']").click()
@@ -115,16 +124,19 @@ def desktop_run(ctx: BrowserContext) -> None:
 
     shot(page, "desktop-06-def-results", copy_to_readme=True)
 
-    # j/k navigation — pickSuggestion blurs the input, so j should land on body.
-    # Click the result area to be sure focus is off the input.
-    page.locator("body").click()
+    # j/k navigation — explicitly blur first so the key doesn't land in the input.
+    page.evaluate(
+        "() => (document.activeElement instanceof HTMLElement) && document.activeElement.blur()"
+    )
+    page.wait_for_timeout(80)
     page.keyboard.press("j")
     page.keyboard.press("j")
-    page.wait_for_timeout(150)
+    page.wait_for_timeout(200)
     sel = page.locator(".sc-hit--selected")
     check("desktop · j navigates selection", sel.count() == 1)
 
-    # Filters toggle
+    # Filters toggle — wait for visible before clicking.
+    page.locator("[data-test='filters-toggle']").wait_for(state="visible", timeout=4000)
     page.locator("[data-test='filters-toggle']").click()
     page.wait_for_selector(".sc-filters", timeout=2000)
     check("desktop · Filters opens", page.locator(".sc-filters").count() == 1)
@@ -206,23 +218,30 @@ def phone_run(ctx: BrowserContext) -> None:
     check("phone · tab labels hidden under 520px", not visible)
     shot(page, "phone-01-search-empty", copy_to_readme=True)
 
+    # Bottom nav should be visible.
+    bnav = page.locator(".sc-bottomnav")
+    check("phone · bottom nav rendered", bnav.is_visible(), f"count={bnav.count()}")
+
     page.locator("[data-test='primary-input']").fill("ZygoteInit")
     page.locator("[data-test='primary-input']").press("Enter")
     page.wait_for_selector("[data-test='hit-row']", timeout=15_000)
     shot(page, "phone-02-results", copy_to_readme=True)
 
-    # Open file panel — should overlay full width.
+    # Tap a hit -> file viewer.
     page.locator("[data-test='hit-row']").first.click()
-    page.wait_for_selector("[data-test='close-file']", timeout=5000)
-    panel_w = page.evaluate(
-        "() => document.querySelector('.sc-filepanel').getBoundingClientRect().width"
+    page.wait_for_selector("[data-test='fileview-body']", timeout=8000)
+    fv = page.locator(".sc-fileview")
+    fv_w = page.evaluate(
+        "() => document.querySelector('.sc-fileview').getBoundingClientRect().width"
     )
-    check("phone · file panel overlays full width", panel_w >= 400, f"width={panel_w}")
-    shot(page, "phone-03-file-panel", copy_to_readme=True)
-    page.locator("[data-test='close-file']").click()
+    check("phone · file viewer takes full width", fv_w >= 400, f"width={fv_w}")
+    shot(page, "phone-03-file-page", copy_to_readme=True)
+    page.locator("[data-test='file-back']").click()
+    page.wait_for_selector("[data-test='results-list']", timeout=3000)
+    # Use the bottom nav to flip to Dashboard.
+    page.locator("[data-test='bnav-dashboard']").click()
 
-    # Dashboard
-    page.goto(URL + "/#/dashboard")
+    # Dashboard (navigated via bottom nav above).
     page.wait_for_selector(".sc-dash__kpi", timeout=5000)
     page.wait_for_function(
         "() => !!document.querySelector('.sc-pre') && document.querySelector('.sc-pre').textContent.length > 50",
@@ -230,16 +249,16 @@ def phone_run(ctx: BrowserContext) -> None:
     )
     shot(page, "phone-04-dashboard", copy_to_readme=True)
 
-    # Logs
-    page.goto(URL + "/#/logs")
+    # Logs via bottom nav.
+    page.locator("[data-test='bnav-logs']").click()
     page.wait_for_selector("[data-test='logs-list']", timeout=5000)
     if page.locator("[data-test='log-item']").count() > 0:
         page.locator("[data-test='log-item']").first.click()
         page.wait_for_timeout(800)
     shot(page, "phone-05-logs", copy_to_readme=True)
 
-    # Settings
-    page.goto(URL + "/#/settings")
+    # Settings via bottom nav.
+    page.locator("[data-test='bnav-settings']").click()
     page.wait_for_selector("[data-test='setting-theme']", timeout=5000)
     shot(page, "phone-06-settings", copy_to_readme=True)
 

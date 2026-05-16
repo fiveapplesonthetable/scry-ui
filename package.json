@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "express": "^4.21.2",
+    "highlight.js": "^11.11.1",
     "mithril": "^2.2.2"
   },
   "devDependencies": {

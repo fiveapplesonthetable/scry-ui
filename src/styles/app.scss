@@ -456,6 +456,15 @@ code {
   font-size: var(--sc-fs-xs);
 }
 
+// Virtual scrolling: rows that aren't on screen are skipped from
+// layout + paint by the browser. Cheap, no library, scales to 10k+
+// rows without a virtual scroller. Same trick trace-launcher uses.
+.sc-hit,
+.sc-codeline {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 24px;
+}
+
 .sc-hit {
   padding: 3px 14px 3px 28px;
   border-bottom: 1px solid var(--sc-border-secondary, var(--sc-border));
@@ -522,7 +531,156 @@ code {
   color: var(--sc-text-dim);
 }
 
-// --- file panel ------------------------------------------------------
+// --- file page (full viewer) ----------------------------------------
+//
+// Layout: sticky header (back + breadcrumbs + meta + copy) over a
+// scrollable body of code lines. The code is highlighted via
+// highlight.js; tokens are themed below using our own colour vars so
+// light + dark match the rest of the UI.
+
+.sc-fileview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  background: var(--sc-bg);
+}
+
+.sc-fileview > .sc-fileview__head {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.sc-fileview > .sc-fileview__body {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+}
+
+.sc-fileview > .sc-fileview__truncated {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.sc-fileview__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--sc-border);
+  background: var(--sc-bg);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sc-fileview__crumbs {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-fs-sm);
+  color: var(--sc-text-dim);
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  // Hide scrollbar visually but keep scrollability.
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.sc-fileview__crumb {
+  display: inline;
+}
+
+.sc-fileview__crumb-sep {
+  color: var(--sc-text-mute);
+  padding: 0 4px;
+}
+
+.sc-fileview__crumb-current {
+  color: var(--sc-text);
+  font-weight: 500;
+}
+
+.sc-fileview__meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--sc-text-mute);
+}
+
+.sc-fileview__body {
+  overflow: auto;
+  min-width: 0;
+  width: 100%;
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-fs-sm);
+  line-height: 1.5;
+  background: var(--sc-bg-code);
+}
+
+// Codeline switched to flex (over grid) so the text column can
+// truly shrink to 0 min-content. Grid's intrinsic min-content sizing
+// would otherwise let an unbreakable token push the row beyond
+// viewport width on phones.
+
+.sc-fileview__truncated {
+  border-top: 1px solid var(--sc-border);
+  padding: 8px 14px;
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-fs-sm);
+  color: var(--sc-warn);
+  background: var(--sc-bg-elev);
+}
+
+// highlight.js token mapping. Light + dark inherit from the theme
+// vars set in theme.scss (--sc-syn-*). No external hljs stylesheet.
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--sc-syn-comment);
+  font-style: italic;
+}
+
+.hljs-string,
+.hljs-template-string,
+.hljs-regexp,
+.hljs-symbol {
+  color: var(--sc-syn-string);
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-tag,
+.hljs-meta,
+.hljs-built_in {
+  color: var(--sc-syn-keyword);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-link {
+  color: var(--sc-syn-number);
+}
+
+.hljs-title,
+.hljs-name,
+.hljs-class .hljs-title,
+.hljs-function .hljs-title,
+.hljs-attr,
+.hljs-attribute,
+.hljs-section,
+.hljs-variable,
+.hljs-params,
+.hljs-type {
+  color: var(--sc-syn-ident);
+}
+
+// --- file panel (legacy side-peek, kept for reference) -------------
 
 .sc-filepanel {
   width: 540px;
@@ -577,14 +735,17 @@ code {
 }
 
 .sc-codeline {
-  display: grid;
-  grid-template-columns: 48px 1fr;
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
   &--hit {
     background: color-mix(in srgb, var(--sc-accent) 16%, transparent);
   }
 }
 
 .sc-codeline__num {
+  flex: 0 0 48px;
   padding: 0 10px 0 6px;
   color: var(--sc-text-mute);
   text-align: right;
@@ -592,9 +753,12 @@ code {
 }
 
 .sc-codeline__txt {
+  flex: 1 1 0;
+  min-width: 0;
   padding: 0 12px;
   white-space: pre;
   color: var(--sc-text);
+  overflow-x: auto; // desktop: long line scrolls within the cell
 }
 
 // --- dashboard (flat, no cards) -------------------------------------
@@ -850,10 +1014,32 @@ code {
   margin: 16px 0;
 }
 
+// Verb wrapper — needed so the button stretches to fill the combobox
+// row height instead of pinning to the top.
+.sc-verb-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+// Stretch all bordered combobox children to the same height so the
+// verb token text, input text, and "Filters" label all share a baseline.
+.sc-verb-wrap > .sc-verb,
+.sc-combobox > .sc-filters-btn {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+}
+
+// Bottom navigation — desktop hides it; mobile shows it instead of top tabs.
+.sc-bottomnav {
+  display: none;
+}
+
 // --- responsive ------------------------------------------------------
 
 // Tablet: hide tab labels, keep icons.
-@media (max-width: 760px) {
+@media (max-width: 880px) {
   .sc-tab__label {
     display: none;
   }
@@ -863,75 +1049,325 @@ code {
   .sc-status span:not(.sc-dot) {
     display: none;
   }
-  .sc-dash__kpi {
-    gap: 14px;
-  }
 }
 
-// Narrow tablet / large phone: stack querybar verbs, narrow file panel.
+// --- MOBILE app shell (≤ 720) ----------------------------------------
+// Below this breakpoint scry-ui stops being a desktop tab UI and
+// becomes a real mobile app: top app bar with title only, fixed
+// bottom nav, full-bleed pages, 44 px tap targets, larger type.
+
 @media (max-width: 720px) {
-  .sc-verb__name {
-    font-size: var(--sc-fs-sm);
+  :root {
+    --sc-topbar-h: 52px;
+    --sc-bottomnav-h: 60px;
+    --sc-pad-lg: 16px;
+    --sc-fs-md: 14px;
+    --sc-fs-sm: 13px;
   }
-  .sc-filepanel {
-    width: 100%;
-    position: fixed;
-    top: var(--sc-topbar-h);
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    border-left: 0;
+
+  // Reserve room for the bottom nav.
+  .sc-app {
+    grid-template-rows: var(--sc-topbar-h) 1fr var(--sc-bottomnav-h);
+  }
+
+  // Top bar: brand on the left, page title centred, status dot + theme right.
+  // Tabs go away — bottom nav owns navigation.
+  .sc-topbar {
+    padding: 0 14px;
+    border-bottom: 1px solid var(--sc-border);
+  }
+  .sc-brand {
+    gap: 10px;
+  }
+  .sc-brand span {
+    font-size: var(--sc-fs-lg);
+  }
+  .sc-tabs {
+    display: none;
+  }
+  .sc-topbar__right {
+    gap: 14px;
+  }
+  .sc-theme-btn {
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  // Bottom nav: five large icon+label cells, hairline top border, no shadow.
+  .sc-bottomnav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--sc-bg);
     border-top: 1px solid var(--sc-border);
   }
+  .sc-bottomnav__tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 0;
+    color: var(--sc-text-mute);
+    font-size: 11px;
+    text-decoration: none;
+    user-select: none;
+    border-top: 2px solid transparent;
+    &:hover {
+      color: var(--sc-text);
+      text-decoration: none;
+    }
+  }
+  .sc-bottomnav__tab--active {
+    color: var(--sc-accent);
+    border-top-color: var(--sc-accent);
+  }
+
+  // Search combobox becomes a vertically-stacked sticky bar with a
+  // search-shaped input that fills the row. Verb dropdown sits above
+  // when opened (still anchored to its wrapper).
+  .sc-combobox {
+    grid-template-columns: auto 1fr auto;
+  }
+  .sc-verb {
+    padding: 0 12px;
+  }
+  .sc-combobox__input {
+    height: 48px;
+    font-size: var(--sc-fs-md);
+  }
+  .sc-filters-btn {
+    padding: 0 14px;
+    font-size: var(--sc-fs-sm);
+  }
+
+  // Filter strip: stack each filter vertically with full-width controls.
+  .sc-filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  .sc-filter {
+    justify-content: space-between;
+  }
+  .sc-filter input,
+  .sc-filter select {
+    height: 32px;
+    font-size: var(--sc-fs-md);
+  }
+
+  // Results: bigger padding, 44 px+ tap targets, sticky group headers
+  // get more visual weight so they read as section headings.
   .sc-results {
     grid-template-columns: 1fr;
   }
+  .sc-results__footer {
+    padding: 10px 16px;
+  }
+  .sc-group-header {
+    padding: 10px 16px;
+    font-size: var(--sc-fs-sm);
+    background: var(--sc-bg-elev);
+  }
+  .sc-group-header__count {
+    font-size: 11px;
+  }
+  .sc-hit {
+    padding: 10px 16px 10px 28px;
+    min-height: 48px;
+  }
+  .sc-hit__line1 {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .sc-hit__snippet {
+    white-space: pre-wrap;
+    overflow: visible;
+    word-break: break-all;
+    margin-top: 4px;
+  }
+
+  // File panel: full-screen modal with its own back affordance.
+  .sc-filepanel {
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    border: 0;
+    background: var(--sc-bg);
+  }
+  .sc-filepanel__head {
+    height: var(--sc-topbar-h);
+    padding: 0 14px;
+    border-bottom: 1px solid var(--sc-border);
+    gap: 12px;
+  }
+  .sc-filepanel__path {
+    font-size: var(--sc-fs-md);
+  }
+  .sc-iconbtn {
+    width: 40px;
+    height: 40px;
+    font-size: var(--sc-fs-md);
+  }
+  .sc-codeline {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+  .sc-codeline__txt {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+  }
+  // Spans emitted by highlight.js otherwise carry no wrapping behaviour
+  // of their own — force them to inherit so long identifiers wrap.
+  .sc-codeline__txt span {
+    white-space: inherit;
+    overflow-wrap: inherit;
+  }
+  .sc-fileview__body {
+    overflow-x: hidden;
+  }
+
+  // Dashboard: full-bleed stacked sections, bigger KPI numbers.
+  .sc-dash__kpi {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px;
+  }
+  .sc-dash__kpi-item {
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--sc-border);
+    padding-bottom: 10px;
+  }
+  .sc-dash__kpi-item:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .sc-dash__kpi-value {
+    font-size: 18px;
+  }
+  .sc-section {
+    padding: 16px;
+  }
+  // The dashboard's two-column row sets its own inline grid; force
+  // single-column on phones so the bar lists stack instead of cramming.
+  .sc-section[style*='grid-template-columns'] {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+  .sc-barrow {
+    grid-template-columns: minmax(120px, 38%) 1fr 60px;
+    height: 22px;
+  }
+  .sc-dl {
+    grid-template-columns: 100px 1fr;
+  }
+  .sc-pre {
+    font-size: 12px;
+    max-height: 240px;
+  }
+
+  // Logs page on phones: vertical list of files (name, size, age,
+  // mtime) up top, tap one to expand the tail view below. No pills,
+  // no horizontal scroll — just a tappable list.
   .sc-logs {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
   .sc-logs__list {
+    display: block;
+    overflow-y: auto;
     border-right: 0;
     border-bottom: 1px solid var(--sc-border);
-    max-height: 160px;
+    max-height: 40vh;
   }
-  .sc-barrow {
-    grid-template-columns: 120px 1fr 60px;
+  .sc-logs__item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--sc-border);
+    border-radius: 0;
+    min-height: 56px;
   }
-  .sc-dl {
-    grid-template-columns: 120px 1fr;
+  .sc-logs__item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+  .sc-logs__item-meta {
+    display: inline;
+    color: var(--sc-text-mute);
+    font-size: var(--sc-fs-xs);
+    margin-top: 0;
+    white-space: nowrap;
+  }
+  .sc-logs__view {
+    padding: 12px 16px;
+    font-size: 12px;
+  }
+
+  // Settings: one-column rows with bottom-divider, 44 px input height.
   .sc-settings__row {
     grid-template-columns: 1fr;
+    padding: 12px 0;
+    gap: 6px;
+    max-width: none;
+  }
+  .sc-settings__row label {
+    font-size: var(--sc-fs-sm);
+  }
+  .sc-settings__row input,
+  .sc-settings__row select {
+    height: 40px;
+    font-size: var(--sc-fs-md);
+    border: 1px solid var(--sc-border);
+    border-radius: 6px;
+    padding: 0 10px;
+  }
+  .sc-settings__row input:focus,
+  .sc-settings__row select:focus {
+    border-color: var(--sc-accent);
+  }
+  .sc-action {
+    height: 40px;
+    padding: 0 18px;
+    font-size: var(--sc-fs-md);
+  }
+
+  // Autocomplete: full-width rows, larger touch targets.
+  .sc-ac-row {
+    padding: 10px 16px;
+    grid-template-columns: 1fr;
+  }
+  .sc-ac-row__meta {
+    grid-column: 1;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .sc-ac-row__path {
+    font-size: 11px;
   }
 }
 
-// Phone: compress topbar; brand-name optional; filters stack vertically.
-@media (max-width: 520px) {
-  :root {
-    --sc-topbar-h: 40px;
-    --sc-pad-lg: 12px;
-  }
+// Very narrow phones: drop the brand word, drop the connected dot label.
+@media (max-width: 380px) {
   .sc-brand span {
     display: none;
   }
-  .sc-combobox {
-    grid-template-columns: auto 1fr;
-  }
-  .sc-filters-btn {
-    grid-column: 1 / -1;
-    border-left: 0;
-    border-top: 1px solid var(--sc-border);
-    padding: 6px 12px;
-  }
   .sc-status {
-    display: none;
-  }
-  .sc-tab {
-    padding: 6px 6px;
-  }
-  .sc-hit__path {
     display: none;
   }
 }

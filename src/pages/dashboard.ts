@@ -97,14 +97,13 @@ export const DashboardPage: m.ClosureComponent = () => {
           recent.length
             ? [
                 m(LineChart, {
-                  width: 1080,
                   height: 220,
                   series,
                   yLabel: 'ms',
                   yFmt: (v: number) => `${Math.round(v)}`,
                   xFmt: (v: number) => fmtRelTime(v),
                 }),
-                m('.sc-section__meta', [
+                m('.sc-section__meta', {style: {flexWrap: 'wrap'}}, [
                   m('span', `p50 ${fmtMs(p50)}`),
                   m('span', `p95 ${fmtMs(p95)}`),
                   m('span', `p99 ${fmtMs(p99)}`),

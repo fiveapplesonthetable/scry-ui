@@ -35,7 +35,13 @@ export const Sparkline: m.Component<Attrs> = {
     const stroke = attrs.color ?? 'var(--sc-accent)';
     return m(
       'svg',
-      {width: w, height: h, viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: 'none'},
+      {
+        width: '100%',
+        height: h,
+        viewBox: `0 0 ${w} ${h}`,
+        preserveAspectRatio: 'none',
+        style: {maxWidth: `${w}px`, display: 'block'},
+      },
       area
         ? m('path', {d: area, fill: stroke, opacity: 0.15, stroke: 'none'})
         : null,

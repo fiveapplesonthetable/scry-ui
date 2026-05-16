@@ -6,7 +6,6 @@ import m from 'mithril';
 
 import {
   acceptSuggestion,
-  closeFile,
   dismissSuggestions,
   inputChanged,
   moveSelection,
@@ -20,7 +19,6 @@ import {
 import {ArgForm, PRIMARY_ARG, PRIMARY_PLACEHOLDER} from '../components/arg_forms.js';
 import {Autocomplete} from '../components/autocomplete.js';
 import {VerbToken} from '../components/cmd_picker.js';
-import {FilePanel} from '../components/file_panel.js';
 import {Results, statusLine} from '../components/results.js';
 
 function countActiveFilters(): number {
@@ -109,20 +107,11 @@ export const SearchPage: m.ClosureComponent = () => {
 
         store.search.filtersOpen ? m(ArgForm) : null,
 
-        m('.sc-results', [
-          m('.sc-results__col', [
-            m(Results),
-            r
-              ? m('.sc-results__footer', {'data-test': 'status-line'}, statusLine(r))
-              : null,
-          ]),
-          store.filePeek.open ? m(FilePanel) : null,
+        m('.sc-results__col', [
+          m(Results),
+          r ? m('.sc-results__footer', {'data-test': 'status-line'}, statusLine(r)) : null,
         ]),
       ]);
-    },
-    onbeforeremove() {
-      // Make sure the file-panel overlay closes when navigating away on mobile.
-      if (store.filePeek.open) closeFile();
     },
   };
 };
@@ -133,6 +122,14 @@ window.addEventListener('keydown', (e) => {
   // own input handler explicitly returned).
   const tag = (e.target as HTMLElement | null)?.tagName ?? '';
   const editable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+  // Esc on the file page goes back to the previous page (usually search).
+  if (e.key === 'Escape' && store.page === 'file') {
+    e.preventDefault();
+    if (history.length > 1) history.back();
+    else location.hash = '#/search';
+    return;
+  }
 
   // `/` focuses the primary input regardless of page (jumps back to search).
   if (e.key === '/' && !editable) {
@@ -153,10 +150,7 @@ window.addEventListener('keydown', (e) => {
   if (store.page !== 'search') return;
 
   if (e.key === 'Escape') {
-    if (store.filePeek.open) {
-      closeFile();
-      e.preventDefault();
-    } else if (store.search.suggestOpen) {
+    if (store.search.suggestOpen) {
       dismissSuggestions();
       e.preventDefault();
     }

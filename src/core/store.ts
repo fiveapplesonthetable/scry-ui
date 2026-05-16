@@ -36,7 +36,7 @@ interface SearchState {
 }
 
 interface State {
-  page: 'search' | 'dashboard' | 'logs' | 'settings' | 'health';
+  page: 'search' | 'dashboard' | 'logs' | 'settings' | 'health' | 'file';
   theme: Theme;
   settings: UiSettings;
   search: SearchState;
@@ -47,6 +47,8 @@ interface State {
     lines: string[];
     startLine: number;
     busy: boolean;
+    totalLines: number;
+    truncated: boolean;
   };
   index: IndexInfo | null;
   metrics: Metrics | null;
@@ -68,11 +70,23 @@ function initialTheme(): Theme {
 }
 
 function initialPage(): State['page'] {
-  const hash = location.hash.replace(/^#\//, '');
-  if (hash === 'dashboard' || hash === 'logs' || hash === 'settings' || hash === 'health') {
+  const hash = location.hash.replace(/^#\//, '').split('?')[0] ?? '';
+  if (
+    hash === 'dashboard' ||
+    hash === 'logs' ||
+    hash === 'settings' ||
+    hash === 'health' ||
+    hash === 'file'
+  ) {
     return hash;
   }
   return 'search';
+}
+
+/** Parse the query string after a `#/<page>?...`. */
+export function hashQuery(): URLSearchParams {
+  const idx = location.hash.indexOf('?');
+  return new URLSearchParams(idx === -1 ? '' : location.hash.slice(idx + 1));
 }
 
 export const store: State = {
@@ -97,6 +111,8 @@ export const store: State = {
     lines: [],
     startLine: 1,
     busy: false,
+    totalLines: 0,
+    truncated: false,
   },
   index: null,
   metrics: null,
@@ -135,6 +151,11 @@ export function goto(p: State['page']): void {
 window.addEventListener('hashchange', () => {
   store.page = initialPage();
   m.redraw();
+  // When the route is #/file, the URL carries the path/line — re-fetch
+  // on every change so navigating between different hits reloads correctly.
+  if (store.page === 'file') {
+    void loadFileFromHash();
+  }
 });
 
 // --- queries ---------------------------------------------------------
@@ -322,34 +343,48 @@ export function openSelected(): void {
   if (hit) void openFile(hit, sel);
 }
 
-// --- file peek -------------------------------------------------------
+// --- file viewer page ------------------------------------------------
 
-export async function openFile(hit: Hit, idx: number): Promise<void> {
+/** Navigate to the file viewer for `hit`. */
+export function openFile(hit: Hit, idx: number): void {
   if (!hit.path || !hit.line) return;
   store.search.selected = idx;
-  store.filePeek.open = true;
-  store.filePeek.path = hit.path;
-  store.filePeek.line = hit.line;
+  const qs = new URLSearchParams({path: hit.path, line: String(hit.line)});
+  location.hash = `#/file?${qs.toString()}`;
+}
+
+/** Fetch the file the URL points at and parse it into filePeek. */
+export async function loadFileFromHash(): Promise<void> {
+  const q = hashQuery();
+  const path = q.get('path');
+  const line = Number(q.get('line') ?? 0) || 0;
+  if (!path) return;
+  store.filePeek.path = path;
+  store.filePeek.line = line;
   store.filePeek.busy = true;
   store.filePeek.lines = [];
+  store.filePeek.truncated = false;
   m.redraw();
   try {
-    const r = await Api.file(hit.path, hit.line, 60);
+    const r = await Api.file(path, line);
     store.filePeek.lines = r.lines;
     store.filePeek.startLine = r.start_line;
+    store.filePeek.totalLines = r.total_lines;
+    store.filePeek.truncated = !!r.truncated;
   } catch (e) {
     store.filePeek.lines = [`(read failed: ${String(e)})`];
     store.filePeek.startLine = 1;
+    store.filePeek.totalLines = 1;
   } finally {
     store.filePeek.busy = false;
     m.redraw();
   }
 }
 
+/** Close the file viewer; usually goes back to search. */
 export function closeFile(): void {
-  store.filePeek.open = false;
-  store.search.selected = null;
-  m.redraw();
+  if (history.length > 1) history.back();
+  else location.hash = '#/search';
 }
 
 // --- background refreshers ------------------------------------------

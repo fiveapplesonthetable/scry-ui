@@ -145,11 +145,13 @@ export function buildApi(deps: ApiDeps): Express {
     await streamLog(path, res);
   });
 
-  // File peek for the result click-through. Returns N lines around the hit.
+  // File fetch. Default returns the whole file (capped at 2 MB) for the
+  // file viewer page. Pass `span=N&line=M` for a small window (legacy
+  // side-panel use). Always returns line numbers + total count.
   app.get('/api/file', async (req: Request, res: Response) => {
     const path = String(req.query['path'] ?? '');
     const line = Number(req.query['line'] ?? 0) || 0;
-    const span = Math.min(200, Number(req.query['span'] ?? 40) || 40);
+    const span = req.query['span'] ? Math.min(2000, Number(req.query['span']) || 0) : 0;
     if (!path.startsWith('/')) {
       res.status(400).json({error: 'absolute path required'});
       return;
@@ -157,15 +159,42 @@ export function buildApi(deps: ApiDeps): Express {
     try {
       const data = await readFile(path, 'utf-8');
       const lines = data.split('\n');
-      const start = Math.max(0, line - Math.floor(span / 2));
-      const end = Math.min(lines.length, start + span);
+      // 2 MB cap to keep highlight.js + browser responsive.
+      const total = lines.length;
+      if (data.length > 2 * 1024 * 1024 && span === 0) {
+        res.json({
+          path,
+          line,
+          start_line: 1,
+          end_line: 200,
+          total_lines: total,
+          truncated: true,
+          lines: lines.slice(0, 200),
+        });
+        return;
+      }
+      if (span > 0) {
+        const start = Math.max(0, line - Math.floor(span / 2));
+        const end = Math.min(total, start + span);
+        res.json({
+          path,
+          line,
+          start_line: start + 1,
+          end_line: end,
+          total_lines: total,
+          truncated: false,
+          lines: lines.slice(start, end),
+        });
+        return;
+      }
       res.json({
         path,
         line,
-        start_line: start + 1,
-        end_line: end,
-        total_lines: lines.length,
-        lines: lines.slice(start, end),
+        start_line: 1,
+        end_line: total,
+        total_lines: total,
+        truncated: false,
+        lines,
       });
     } catch (e) {
       res.status(500).json({error: String(e)});

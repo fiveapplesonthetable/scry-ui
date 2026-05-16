@@ -40,7 +40,7 @@ export const VerbToken: m.ClosureComponent = () => {
     view() {
       const current = COMMANDS.find((c) => c.id === store.search.cmd) ?? COMMANDS[0]!;
       return m(
-        'div',
+        '.sc-verb-wrap',
         m(
           'button.sc-verb',
           {
