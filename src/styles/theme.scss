@@ -1,0 +1,149 @@
+// Design tokens. Light is the default; dark is opt-in via
+// `data-theme="dark"` on <html>. Every colour goes through a CSS var
+// so toggling theme means swapping one map.
+
+// Type, motion and shape — theme-independent. Radii are intentionally
+// tight (3 / 5 / 8) so the UI reads as Perfetto-family chrome rather
+// than rounded cards. Roboto + Roboto Mono mirror Perfetto's identity
+// and trace-launcher's typography.
+
+:root {
+  --sc-font-sans:
+    'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif;
+  --sc-font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --sc-fs-xs: 11px;
+  --sc-fs-sm: 12px;
+  --sc-fs-md: 13px;
+  --sc-fs-lg: 15px;
+  --sc-fs-xl: 18px;
+
+  // Almost everything is 0. The 2px exists only for the brand mark
+  // and progress fills — anywhere we'd otherwise look like a 2010 web
+  // form. No bigger radius is allowed.
+  --sc-radius-sm: 0;
+  --sc-radius-md: 0;
+  --sc-radius-lg: 2px;
+
+  --sc-row-h: 24px;
+  --sc-topbar-h: 40px;
+  --sc-pad: 12px;
+  --sc-pad-sm: 6px;
+  --sc-pad-lg: 14px;
+
+  // Dropdowns get a 1px border, not a drop shadow. shadow-md is the
+  // single allowed elevation, used only when a panel floats above
+  // tabular content — it should be barely visible.
+  --sc-shadow-sm: none;
+  --sc-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.18);
+
+  --sc-transition: 130ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+// Density modifier — applied at the document root.
+:root[data-density='compact'] {
+  --sc-row-h: 22px;
+  --sc-pad: 8px;
+  --sc-pad-lg: 12px;
+  --sc-fs-md: 12px;
+}
+
+// --- DARK (default) ------------------------------------------------------
+// Dark first because that's the Perfetto/trace-launcher convention and
+// the most common environment we'll be used in.
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --sc-bg: #181818;
+  --sc-bg-elev: #202020;
+  --sc-bg-elev-2: #282828;
+  --sc-bg-hover: #2a2a2a;
+  --sc-bg-active: #343434;
+  --sc-bg-code: #1a1a1a;
+  --sc-bg-input: #202020;
+
+  --sc-border: #3a3a3a;
+  --sc-border-strong: #4a4a4a;
+  --sc-border-focus: #5e97f6;
+
+  --sc-text: #dce0e2;
+  --sc-text-dim: #a0a2a5;
+  --sc-text-mute: #6f7174;
+  --sc-text-inv: #10243f;
+
+  --sc-accent: #5e97f6;
+  --sc-accent-hover: #79a8f7;
+  --sc-accent-soft: #2a3a52;
+
+  --sc-ok: #63c063;
+  --sc-warn: #f4bc43;
+  --sc-err: #e65a5a;
+
+  --sc-chip-bg: #282828;
+  --sc-chip-bg-hover: #343434;
+
+  --sc-chart-1: #5e97f6;
+  --sc-chart-2: #63c063;
+  --sc-chart-3: #f4bc43;
+  --sc-chart-4: #e65a5a;
+  --sc-chart-5: #b388ff;
+  --sc-chart-6: #4fd1c5;
+  --sc-chart-grid: #2a2a2a;
+  --sc-chart-axis: #3a3a3a;
+
+  --sc-syn-comment: #8b949e;
+  --sc-syn-string: #a5d6ff;
+  --sc-syn-keyword: #ff7b72;
+  --sc-syn-number: #79c0ff;
+  --sc-syn-ident: #dce0e2;
+  --sc-hit-bg: #58420d;
+}
+
+// --- LIGHT --------------------------------------------------------------
+:root[data-theme='light'] {
+  color-scheme: light;
+  --sc-bg: #ffffff;
+  --sc-bg-elev: #f5f7f8;
+  --sc-bg-elev-2: #e8ebed;
+  --sc-bg-hover: #f0f2f4;
+  --sc-bg-active: #e3e7ea;
+  --sc-bg-code: #fafbfc;
+  --sc-bg-input: #ffffff;
+
+  --sc-border: #d8dbde;
+  --sc-border-strong: #c7cbd0;
+  --sc-border-focus: #2667e7;
+
+  --sc-text: #1f2123;
+  --sc-text-dim: #5f6368;
+  --sc-text-mute: #9aa0a6;
+  --sc-text-inv: #ffffff;
+
+  --sc-accent: #2667e7;
+  --sc-accent-hover: #1f57c7;
+  --sc-accent-soft: #e8f0fe;
+
+  --sc-ok: #1a8c34;
+  --sc-warn: #b9770e;
+  --sc-err: #ca2626;
+
+  --sc-chip-bg: #e8ebed;
+  --sc-chip-bg-hover: #dde0e3;
+
+  --sc-chart-1: #2667e7;
+  --sc-chart-2: #1a8c34;
+  --sc-chart-3: #b9770e;
+  --sc-chart-4: #ca2626;
+  --sc-chart-5: #6a3eb3;
+  --sc-chart-6: #007c8c;
+  --sc-chart-grid: #eef1f5;
+  --sc-chart-axis: #c7cbd0;
+
+  --sc-syn-comment: #6a737d;
+  --sc-syn-string: #032f62;
+  --sc-syn-keyword: #d73a49;
+  --sc-syn-number: #005cc5;
+  --sc-syn-ident: #1f2123;
+  --sc-hit-bg: #fff5b1;
+}
