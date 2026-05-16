@@ -764,8 +764,12 @@ code {
 // --- dashboard (flat, no cards) -------------------------------------
 
 .sc-dash {
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .sc-dash__kpi {
