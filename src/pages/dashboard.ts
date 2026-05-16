@@ -1,11 +1,14 @@
 // Dashboard: a KPI strip across the top, then flat sections separated
-// by hairlines — no cards, no padding boxes. Charts inline; raw
-// `scry stats` output at the bottom.
+// by hairlines. Time-window pill picker filters which latency points
+// feed the charts. Legend strip under the histogram shows p50/p95/p99
+// with coloured swatches.
 
 import m from 'mithril';
 
 import {fmtBytes, fmtCount, fmtMs, fmtRelTime, langColor, percentile} from '../base/format.js';
+import {cn} from '../base/classnames.js';
 import {refreshIndex, store} from '../core/store.js';
+import {CdfChart} from '../widgets/cdf_chart.js';
 import {Histogram} from '../widgets/histogram.js';
 import {LineChart, type Series} from '../widgets/line_chart.js';
 
@@ -14,6 +17,15 @@ interface Row {
   value: number;
   color?: string;
 }
+
+const WINDOWS = [
+  {id: '5m', label: '5 min', ms: 5 * 60_000},
+  {id: '1h', label: '1 hour', ms: 60 * 60_000},
+  {id: '24h', label: '24 hours', ms: 24 * 3600_000},
+  {id: 'all', label: 'session', ms: Infinity},
+] as const;
+
+type WindowId = (typeof WINDOWS)[number]['id'];
 
 function bars(rows: Row[], fmt: (n: number) => string): m.Children {
   if (rows.length === 0) return m('.sc-empty', '—');
@@ -40,6 +52,7 @@ function bars(rows: Row[], fmt: (n: number) => string): m.Children {
 
 export const DashboardPage: m.ClosureComponent = () => {
   let initd = false;
+  let win: WindowId = 'all';
   return {
     oninit() {
       if (initd) return;
@@ -49,7 +62,9 @@ export const DashboardPage: m.ClosureComponent = () => {
     view() {
       const idx = store.index;
       const metrics = store.metrics;
-      const recent = metrics?.recent ?? [];
+      const all = metrics?.recent ?? [];
+      const cutoff = win === 'all' ? 0 : Date.now() - (WINDOWS.find((w) => w.id === win)?.ms ?? 0);
+      const recent = all.filter((p) => p.t >= cutoff);
       const latencies = recent.map((p) => p.ms);
       const p50 = percentile(latencies, 50);
       const p95 = percentile(latencies, 95);
@@ -89,8 +104,26 @@ export const DashboardPage: m.ClosureComponent = () => {
         kpi('queries', fmtCount(recent.length), recent.length ? `p50 ${fmtMs(p50)}` : 'session'),
       ]);
 
+      const windowPicker = m(
+        '.sc-window',
+        WINDOWS.map((w) =>
+          m(
+            'button.sc-window__pill',
+            {
+              key: w.id,
+              class: cn({'sc-window__pill--on': win === w.id}),
+              onclick: () => {
+                win = w.id;
+              },
+            },
+            w.label,
+          ),
+        ),
+      );
+
       const latencyChart = m('.sc-section', [
         m('h3.sc-section__title', 'Query latency over time'),
+        windowPicker,
         recent.length
           ? m(LineChart, {
               height: 220,
@@ -99,12 +132,12 @@ export const DashboardPage: m.ClosureComponent = () => {
               yFmt: (v: number) => `${Math.round(v)}`,
               xFmt: (v: number) => fmtRelTime(v),
             })
-          : m('.sc-empty', 'Run a few searches to populate this chart.'),
+          : m('.sc-empty', `No queries in the last ${labelFor(win)}.`),
         recent.length
           ? m('.sc-section__meta', [
-              m('span', `p50 ${fmtMs(p50)}`),
-              m('span', `p95 ${fmtMs(p95)}`),
-              m('span', `p99 ${fmtMs(p99)}`),
+              percentileSwatch('p50', p50, 'var(--sc-chart-2)'),
+              percentileSwatch('p95', p95, 'var(--sc-chart-3)'),
+              percentileSwatch('p99', p99, 'var(--sc-chart-4)'),
               m('span', `n=${recent.length}`),
             ])
           : m('span'),
@@ -118,6 +151,32 @@ export const DashboardPage: m.ClosureComponent = () => {
               height: 200,
               xFmt: (v: number) => `${Math.round(v)}ms`,
             }),
+            m('.sc-section__meta', [
+              percentileSwatch('p50', p50, 'var(--sc-chart-2)'),
+              percentileSwatch('p95', p95, 'var(--sc-chart-3)'),
+              percentileSwatch('p99', p99, 'var(--sc-chart-4)'),
+            ]),
+          ])
+        : m('div', {style: {display: 'none'}});
+
+      const cdfSection = recent.length
+        ? m('.sc-section', [
+            m('h3.sc-section__title', 'CDF — cumulative distribution'),
+            m(CdfChart, {
+              values: latencies,
+              height: 200,
+              xFmt: (v: number) => `${Math.round(v)}ms`,
+            }),
+            m('.sc-section__meta', [
+              percentileSwatch('p50', p50, 'var(--sc-chart-2)'),
+              percentileSwatch('p95', p95, 'var(--sc-chart-3)'),
+              percentileSwatch('p99', p99, 'var(--sc-chart-4)'),
+              m(
+                'span',
+                {style: {color: 'var(--sc-text-mute)'}},
+                'Y is cumulative fraction; flatter slope = more queries at that latency.',
+              ),
+            ]),
           ])
         : m('div', {style: {display: 'none'}});
 
@@ -182,7 +241,15 @@ export const DashboardPage: m.ClosureComponent = () => {
         idx ? m('pre.sc-pre', idx.stats_text || '(empty)') : m('.sc-empty', 'Loading…'),
       ]);
 
-      return m('.sc-dash', [kpis, latencyChart, distribution, cmdSection, roots, rawStats]);
+      return m('.sc-dash', [
+        kpis,
+        latencyChart,
+        distribution,
+        cdfSection,
+        cmdSection,
+        roots,
+        rawStats,
+      ]);
     },
   };
 };
@@ -195,4 +262,23 @@ function kpi(label: string, value: string, sub?: string): m.Vnode {
       ? m('span', {style: {color: 'var(--sc-text-mute)', fontSize: 'var(--sc-fs-xs)'}}, sub)
       : m('span'),
   ]);
+}
+
+/** Coloured-dot swatch + label + value; the legend cell used under every chart.
+ *  No key on purpose — siblings in the meta strip include plain spans
+ *  too, and mixing keyed + unkeyed in one fragment trips Mithril's diff. */
+function percentileSwatch(label: string, value: number, color: string): m.Vnode {
+  return m(
+    'span.sc-swatch',
+    {title: `${label} = ${fmtMs(value)}`},
+    [
+      m('span.sc-swatch__dot', {style: {background: color}}),
+      m('span.sc-swatch__label', label),
+      m('span.sc-swatch__value', fmtMs(value)),
+    ],
+  );
+}
+
+function labelFor(id: WindowId): string {
+  return WINDOWS.find((w) => w.id === id)?.label ?? 'session';
 }

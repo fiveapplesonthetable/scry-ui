@@ -135,12 +135,16 @@ def desktop_run(ctx: BrowserContext) -> None:
     sel = page.locator(".sc-hit--selected")
     check("desktop · j navigates selection", sel.count() == 1)
 
-    # Filters toggle — wait for visible before clicking.
-    page.locator("[data-test='filters-toggle']").wait_for(state="visible", timeout=4000)
-    page.locator("[data-test='filters-toggle']").click()
-    page.wait_for_selector(".sc-filters", timeout=2000)
-    check("desktop · Filters opens", page.locator(".sc-filters").count() == 1)
+    # Filters strip — default-visible now for commands that take filters.
+    check(
+        "desktop · Filters auto-shown for def",
+        page.locator(".sc-filters").count() == 1,
+    )
     shot(page, "desktop-07-filters", copy_to_readme=True)
+    # Toggle hides them.
+    page.locator("[data-test='filters-toggle']").click()
+    page.wait_for_selector(".sc-filters", state="detached", timeout=2000)
+    check("desktop · Filters toggle hides", page.locator(".sc-filters").count() == 0)
 
     # Dashboard
     page.goto(URL + "/#/dashboard")

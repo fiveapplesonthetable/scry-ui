@@ -354,6 +354,64 @@ code {
   font-size: var(--sc-fs-xs);
 }
 
+// --- swatches (legend dots) --------------------------------------
+
+.sc-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-fs-sm);
+  color: var(--sc-text-dim);
+}
+
+.sc-swatch__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.sc-swatch__label {
+  color: var(--sc-text-mute);
+}
+
+.sc-swatch__value {
+  color: var(--sc-text);
+  font-weight: 500;
+}
+
+// --- window picker (5m / 1h / 24h / session) ---------------------
+
+.sc-window {
+  display: inline-flex;
+  gap: 0;
+  margin: 0 0 10px;
+  border: 1px solid var(--sc-border);
+}
+
+.sc-window__pill {
+  padding: 4px 12px;
+  border: 0;
+  border-right: 1px solid var(--sc-border);
+  background: var(--sc-bg);
+  color: var(--sc-text-dim);
+  font-size: var(--sc-fs-sm);
+  cursor: pointer;
+  &:last-child {
+    border-right: 0;
+  }
+  &:hover {
+    color: var(--sc-text);
+    background: var(--sc-bg-hover);
+  }
+}
+
+.sc-window__pill--on {
+  background: var(--sc-bg-active);
+  color: var(--sc-accent);
+}
+
 // Filters strip (collapsible)
 .sc-filters {
   display: flex;

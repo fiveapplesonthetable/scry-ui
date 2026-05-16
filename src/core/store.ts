@@ -99,7 +99,9 @@ export const store: State = {
     busy: false,
     response: null,
     selected: null,
-    filtersOpen: false,
+    // Default-open so users see filters like `kind`, `lang`, `in path`
+    // right away for the commands that take them.
+    filtersOpen: true,
     suggestions: [],
     suggestionIdx: -1,
     suggestOpen: false,

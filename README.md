@@ -11,6 +11,11 @@ query latencies, and live log tails for the indexer's writers.
 
 [scry]: https://github.com/fiveapplesonthetable/scry
 
+> *Scrying* is the old English word for staring into a crystal or pool to
+> see something far away or hidden. The indexer takes that as a metaphor
+> for sub-second answers across ~1 M source files; the UI is the surface
+> you do the staring through.
+
 ## Screenshots
 
 | Search results | Definition lookup with autocomplete |

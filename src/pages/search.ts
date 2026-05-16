@@ -32,6 +32,19 @@ function countActiveFilters(): number {
   return n;
 }
 
+/** Filters that should always be visible inline for the given command. */
+const HAS_FILTERS: Record<string, boolean> = {
+  def: true,
+  ref: true,
+  callers: true,
+  prefix: true,
+  fuzzy: true,
+  grep: true,
+  coverage: true,
+  owner: true,
+  diff: true,
+};
+
 export const SearchPage: m.ClosureComponent = () => {
   let inputEl: HTMLInputElement | null = null;
   return {
@@ -105,7 +118,10 @@ export const SearchPage: m.ClosureComponent = () => {
           m(Autocomplete),
         ]),
 
-        store.search.filtersOpen ? m(ArgForm) : null,
+        // Filter row: always shown for commands that take filters; the
+        // toggle button just collapses or expands it. Commands with no
+        // filters (outline / tldr / module-of / ask) hide it entirely.
+        HAS_FILTERS[cmd] && store.search.filtersOpen ? m(ArgForm) : null,
 
         m('.sc-results__col', [
           m(Results),

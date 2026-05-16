@@ -1,7 +1,8 @@
-// Latency-distribution histogram. Same approach as LineChart:
-// fixed 800-unit viewBox, scales to container via CSS, no JS measurement.
-// All keyed elements wrapped in <g> groups to avoid Mithril's
-// mixed-key fragment diff bug.
+// Cumulative-distribution chart for a list of latency values.
+// X axis is latency (ms), Y axis is the cumulative fraction (0–100%).
+// Renders the empirical CDF as a step path, with the same chrome as
+// the other charts (gridlines, hairline axes, 800-unit viewBox + CSS
+// scaling).
 
 import m from 'mithril';
 
@@ -10,59 +11,63 @@ import {percentile} from '../base/format.js';
 interface Attrs {
   values: number[];
   height?: number;
-  buckets?: number;
   xFmt?: (v: number) => string;
-  /** If false, only draws the dashed lines — caller supplies its own
-   *  textual legend below. Default false; the dashboard renders its
-   *  own legend strip with colour swatches. */
-  inlineLabels?: boolean;
 }
 
 const VBW = 800;
 const PAD = {top: 8, right: 14, bottom: 24, left: 44};
 
-export const Histogram: m.Component<Attrs> = {
+export const CdfChart: m.Component<Attrs> = {
   view({attrs}) {
     const w = VBW;
-    const h = attrs.height ?? 160;
+    const h = attrs.height ?? 200;
     const innerW = w - PAD.left - PAD.right;
     const innerH = h - PAD.top - PAD.bottom;
+
     const vs = attrs.values;
     if (vs.length === 0) {
-      return m('svg', {viewBox: `0 0 ${w} ${h}`, style: {width: '100%', height: `${h}px`}});
+      return m('svg', {
+        viewBox: `0 0 ${w} ${h}`,
+        style: {width: '100%', height: `${h}px`},
+      });
     }
 
+    const sorted = [...vs].sort((a, b) => a - b);
     const min = 0;
-    const niceStepV = niceStep(Math.max(...vs) / 5);
-    const niceMax = niceStepV * Math.ceil(Math.max(...vs) / niceStepV);
+    const niceStepV = niceStep((sorted[sorted.length - 1] ?? 1) / 5);
+    const niceMax = niceStepV * Math.ceil((sorted[sorted.length - 1] ?? 1) / niceStepV);
     const range = Math.max(1, niceMax - min);
-    const nBuckets = attrs.buckets ?? 24;
-    const bw = range / nBuckets;
-    const counts = new Array<number>(nBuckets).fill(0);
-    for (const v of vs) {
-      const idx = Math.min(nBuckets - 1, Math.floor((v - min) / bw));
-      counts[idx]! += 1;
-    }
-    const maxCount = Math.max(...counts);
 
     const sx = (v: number): number => PAD.left + ((v - min) / range) * innerW;
-    const sy = (c: number): number =>
-      PAD.top + innerH - (c / Math.max(1, maxCount)) * innerH;
+    const sy = (frac: number): number =>
+      PAD.top + innerH - frac * innerH;
 
-    const yTicks = niceTicks(0, maxCount, 3);
+    // Build a step path: each (value, i/N) becomes a horizontal then
+    // vertical move, so the line steps up exactly at each measurement.
+    const segments: string[] = [];
+    segments.push(`M${sx(0).toFixed(1)},${sy(0).toFixed(1)}`);
+    for (let i = 0; i < sorted.length; i++) {
+      const x = sx(sorted[i] ?? 0);
+      const yPrev = sy(i / sorted.length);
+      const yCur = sy((i + 1) / sorted.length);
+      segments.push(`L${x.toFixed(1)},${yPrev.toFixed(1)}`);
+      segments.push(`L${x.toFixed(1)},${yCur.toFixed(1)}`);
+    }
+    segments.push(`L${sx(niceMax).toFixed(1)},${sy(1).toFixed(1)}`);
+    const linePath = segments.join(' ');
+    const areaPath = `${linePath} L${sx(niceMax).toFixed(
+      1,
+    )},${(PAD.top + innerH).toFixed(1)} L${sx(0).toFixed(1)},${(PAD.top + innerH).toFixed(
+      1,
+    )} Z`;
+
+    const yTicks = [0, 0.25, 0.5, 0.75, 1];
     const xTicks = niceTicks(min, niceMax, 5);
     const xFmt = attrs.xFmt ?? ((v: number) => `${Math.round(v)}`);
 
     const p50 = percentile(vs, 50);
     const p95 = percentile(vs, 95);
     const p99 = percentile(vs, 99);
-    const markers: Array<{label: string; v: number; color: string}> = [
-      {label: 'p50', v: p50, color: 'var(--sc-chart-2)'},
-      {label: 'p95', v: p95, color: 'var(--sc-chart-3)'},
-      {label: 'p99', v: p99, color: 'var(--sc-chart-4)'},
-    ];
-
-    const barW = Math.max(1, innerW / nBuckets - 2);
 
     return m(
       'svg',
@@ -92,7 +97,7 @@ export const Histogram: m.Component<Attrs> = {
                 'font-size': 10,
                 fill: 'var(--sc-text-mute)',
               },
-              String(Math.round(t)),
+              `${Math.round(t * 100)}%`,
             ),
           ]),
         ),
@@ -133,57 +138,52 @@ export const Histogram: m.Component<Attrs> = {
           ),
         ),
       ]),
-      m(
-        'g.bars',
-        counts
-          .map((c, i) => ({c, i}))
-          .filter((b) => b.c > 0)
-          .map((b) =>
-            m('rect', {
-              key: b.i,
-              x: sx(min + b.i * bw) + 1,
-              y: sy(b.c),
-              width: barW,
-              height: PAD.top + innerH - sy(b.c),
-              fill: 'var(--sc-chart-1)',
-              opacity: 0.85,
-            }),
-          ),
-      ),
-      m(
-        'g.markers',
-        markers.map((mk) =>
-          m('g', {key: mk.label}, [
-            m('line', {
-              x1: sx(mk.v),
-              x2: sx(mk.v),
-              y1: PAD.top,
-              y2: PAD.top + innerH,
-              stroke: mk.color,
-              'vector-effect': 'non-scaling-stroke',
-              'stroke-dasharray': '3 3',
-            }),
-            m(
-              'g.label',
-              attrs.inlineLabels
-                ? m(
-                    'text',
-                    {
-                      x: sx(mk.v) + 3,
-                      y: PAD.top + 10,
-                      'font-size': 10,
-                      fill: mk.color,
-                    },
-                    `${mk.label} ${xFmt(mk.v)}`,
-                  )
-                : null,
-            ),
-          ]),
-        ),
-      ),
+      m('g.area', [
+        m('path', {
+          d: areaPath,
+          fill: 'var(--sc-chart-1)',
+          opacity: 0.08,
+          stroke: 'none',
+        }),
+        m('path', {
+          d: linePath,
+          fill: 'none',
+          stroke: 'var(--sc-chart-1)',
+          'stroke-width': 1.5,
+          'vector-effect': 'non-scaling-stroke',
+          'stroke-linejoin': 'round',
+        }),
+      ]),
+      // Percentile markers — same colours as the histogram for consistency.
+      m('g.markers', [
+        marker('p50', p50, 'var(--sc-chart-2)', sx, PAD.top, innerH),
+        marker('p95', p95, 'var(--sc-chart-3)', sx, PAD.top, innerH),
+        marker('p99', p99, 'var(--sc-chart-4)', sx, PAD.top, innerH),
+      ]),
     );
   },
 };
+
+function marker(
+  label: string,
+  v: number,
+  color: string,
+  sx: (v: number) => number,
+  top: number,
+  innerH: number,
+): m.Vnode {
+  return m('g', {key: label}, [
+    m('line', {
+      x1: sx(v),
+      x2: sx(v),
+      y1: top,
+      y2: top + innerH,
+      stroke: color,
+      'vector-effect': 'non-scaling-stroke',
+      'stroke-dasharray': '3 3',
+    }),
+  ]);
+}
 
 function niceTicks(min: number, max: number, target: number): number[] {
   const range = max - min;
